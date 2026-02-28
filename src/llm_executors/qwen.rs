@@ -2,7 +2,7 @@
 
 use crate::error::{ExecutionError, Result};
 use crate::llm_executors::types::{
-    ChatMessage, ExecutionResult, JsonSchemaRequest, LlmType, Output, OutputMetadata,
+    ChatMessage, ExecutionResult, JsonSchemaRequest, Output, OutputMetadata,
     ResponseFormatRequest, Token, TokenStream,
 };
 use futures::StreamExt;
@@ -94,6 +94,7 @@ struct QwenChatCompletionRequest {
 }
 
 /// Qwen LLM provider
+#[derive(Clone)]
 pub struct Qwen {
     client: Client,
     config: QwenConfig,
@@ -111,7 +112,7 @@ impl Qwen {
     }
 }
 
-impl LlmType for Qwen {
+impl crate::executor::PromptExecutor for Qwen {
     async fn execute_raw(&self, prompt: String) -> Result<ExecutionResult<String>> {
         self.execute_internal(prompt, None).await
     }

@@ -10,4 +10,3 @@ pub use deepseek::DeepSeek;
 pub use gpt_oss::GptOss;
 pub use openai::OpenAI;
 pub use qwen::Qwen;
-pub use types::LlmType;

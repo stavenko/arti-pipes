@@ -2,7 +2,7 @@
 
 use crate::error::{ExecutionError, Result};
 use crate::llm_executors::types::{
-    ChatMessage, ExecutionResult, JsonSchemaRequest, LlmType, Output, OutputMetadata,
+    ChatMessage, ExecutionResult, JsonSchemaRequest, Output, OutputMetadata,
     ResponseFormatRequest, Token, TokenStream,
 };
 use futures::StreamExt;
@@ -127,6 +127,7 @@ fn parse_deepseek_sse_line(line: &str) -> Option<DeepSeekChunk> {
 }
 
 /// DeepSeek LLM provider
+#[derive(Clone)]
 pub struct DeepSeek {
     client: Client,
     config: DeepSeekConfig,
@@ -144,7 +145,7 @@ impl DeepSeek {
     }
 }
 
-impl LlmType for DeepSeek {
+impl crate::executor::PromptExecutor for DeepSeek {
     async fn execute_raw(&self, prompt: String) -> Result<ExecutionResult<String>> {
         self.execute_internal(prompt, None).await
     }

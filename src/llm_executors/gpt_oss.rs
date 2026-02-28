@@ -2,7 +2,7 @@
 
 use crate::error::{ExecutionError, Result};
 use crate::llm_executors::types::{
-    ChatMessage, ExecutionResult, JsonSchemaRequest, LlmType, Output, OutputMetadata,
+    ChatMessage, ExecutionResult, JsonSchemaRequest, Output, OutputMetadata,
     ResponseFormatRequest, Token, TokenStream,
 };
 use futures::StreamExt;
@@ -95,6 +95,7 @@ struct GptOssChatCompletionRequest {
 }
 
 /// GPT-OSS LLM provider
+#[derive(Clone)]
 pub struct GptOss {
     client: Client,
     config: GptOssConfig,
@@ -112,7 +113,7 @@ impl GptOss {
     }
 }
 
-impl LlmType for GptOss {
+impl crate::executor::PromptExecutor for GptOss {
     async fn execute_raw(&self, prompt: String) -> Result<ExecutionResult<String>> {
         self.execute_internal(prompt, None).await
     }
