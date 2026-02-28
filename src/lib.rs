@@ -1,24 +1,52 @@
-//! arti-pipes: Executor-agnostic prompt pipelines
+//! # arti-pipes: Executor-agnostic prompt pipelines
 //!
-//! A system for chaining prompts with dynamic dispatch and node-based execution flow,
-//! decoupled from specific execution strategies.
+//! Build multi-step LLM workflows without coupling to specific execution implementations.
+//! Chain prompts, branch based on results, and integrate tools—all while keeping your
+//! pipeline logic separate from your LLM provider.
 //!
-//! ## Overview
+//! ## Quick Start
 //!
-//! `arti-pipes` provides a flexible framework for building multi-step LLM workflows
-//! (pipelines) without coupling to specific execution implementations. The library
-//! separates the pipeline orchestration logic from the actual prompt execution,
-//! allowing for different execution strategies such as:
+//! ```rust,ignore
+//! use arti_pipes::*;
 //!
-//! - LLM API calls (OpenAI, Anthropic, etc.)
-//! - Mock executors for testing
-//! - Caching layers
-//! - Request routing
-//! - Fallback strategies
+//! // 1. Define context
+//! #[derive(Clone)]
+//! struct MyContext {
+//!     input: String,
+//!     result: Option<String>,
+//! }
+//!
+//! // 2. Create pipeline
+//! let pipeline = Pipeline::new(Box::new(NodeWrapper::new(MyNode { executor })));
+//!
+//! // 3. Run and stream events
+//! let mut stream = run_pipeline(pipeline, context);
+//! while let Some(event) = stream.next().await {
+//!     match event {
+//!         NodeEvent::Prompt(id, prompt_event) => { /* ... */ }
+//!         NodeEvent::Completed(ctx) => { /* ... */ }
+//!     }
+//! }
+//! ```
+//!
+//! ## Documentation
+//!
+//! - **[README.md](https://github.com/stavenko/arti-pipes/blob/main/README.md)** - Overview and examples
+//! - **[TOOLS.md](https://github.com/stavenko/arti-pipes/blob/main/TOOLS.md)** - Complete tool system guide
+//! - **[PATTERNS.md](https://github.com/stavenko/arti-pipes/blob/main/PATTERNS.md)** - Common patterns and best practices
+//!
+//! ## Core Features
+//!
+//! - **Executor Agnostic** - Swap LLM providers without changing pipeline logic
+//! - **Type-Safe Context** - Compile-time validation of data flow
+//! - **Streaming First** - Real-time token streaming for responsive UIs
+//! - **Dynamic Branching** - Route based on results or conditions
+//! - **Tool Integration** - LLMs can call external functions
+//! - **Testable** - Mock executors for testing
 //!
 //! ## Architecture
 //!
-//! The library consists of three main layers:
+//! The library uses a four-layer architecture:
 //!
 //! ### 1. Pipeline Layer ([`pipeline`])
 //!
@@ -162,6 +190,25 @@
 //! - [`prompt`]: Prompt trait and execution events
 //! - [`node`]: Node trait and node runner abstractions
 //! - [`pipeline`]: Pipeline orchestration
+//! - [`tool`]: Tool system for LLM function calling
+//! - [`tool_registry`]: Tool collection management
+//! - [`llm_executors`]: Built-in executor implementations
+//!
+//! ## Examples
+//!
+//! See the `tests/` directory for complete examples:
+//!
+//! - `three_node_pipeline.rs` - Linear A→B→C pipeline
+//! - `tools_pipeline.rs` - Basic calculator tool
+//! - `file_saver_tool.rs` - File operations with metadata
+//! - `file_saver_with_tag_extraction.rs` - Multi-node routing pattern
+//! - `tool_with_subpipeline.rs` - Tool with internal logic pattern
+//!
+//! Run examples:
+//! ```bash
+//! cargo test test_three_node_pipeline -- --nocapture
+//! cargo test test_tools_pipeline -- --nocapture
+//! ```
 
 pub mod error;
 pub mod executor;
