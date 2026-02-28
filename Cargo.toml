@@ -1,0 +1,17 @@
+[package]
+name = "arti-pipes"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "*"
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+futures = "*"
+tokio = { version = "*", features = ["full"] }
+tokio-stream = "*"
+uuid = { version = "*", features = ["v4", "v7", "serde"] }
+schemars = "*"
+async-stream = "*"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+toml = "*"
