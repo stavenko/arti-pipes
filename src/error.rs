@@ -24,6 +24,18 @@ pub enum ExecutionError {
 
     #[error("Configuration error: {0}")]
     ConfigError(String),
+
+    #[error("Tool not found: {0}")]
+    ToolNotFound(String),
+
+    #[error("Failed to parse tool input: {0}")]
+    ToolInputParse(String),
+
+    #[error("Failed to serialize tool output: {0}")]
+    ToolOutputSerialize(String),
+
+    #[error("Tool execution failed: {0}")]
+    ToolExecutionFailed(String),
 }
 
 impl From<serde_json::Error> for ExecutionError {

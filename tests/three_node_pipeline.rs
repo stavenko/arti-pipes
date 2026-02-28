@@ -471,6 +471,9 @@ async fn test_three_node_pipeline() {
                         PromptExecutionEvent::Error(e) => {
                             eprintln!("❌ Error: {:?}", e);
                         }
+                        _ => {
+                            // Handle tool-related events (not used in this test)
+                        }
                     },
                     NodeEvent::Completed(ctx) => {
                         println!("\n🎯 Node completed\n");

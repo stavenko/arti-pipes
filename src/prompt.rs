@@ -4,6 +4,7 @@
 
 use crate::error::ExecutionError;
 use crate::executor::{PromptExecutor, Token};
+use crate::tool::{ToolCall, ToolResult};
 use futures::stream::LocalBoxStream;
 
 /// Name identifier for a prompt
@@ -22,6 +23,18 @@ pub enum PromptExecutionEvent {
     Error(ExecutionError),
     /// Execution completed with final output
     Completed(String),
+    /// Tool calls detected in LLM response
+    ToolCallsRequested(Vec<ToolCall>),
+    /// Tool is being executed
+    ToolExecuting {
+        call_id: String,
+        tool_name: String,
+    },
+    /// Tool execution completed
+    ToolCompleted {
+        call_id: String,
+        result: ToolResult,
+    },
 }
 
 /// Trait for prompt implementations

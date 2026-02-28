@@ -11,7 +11,8 @@ futures = "*"
 tokio = { version = "*", features = ["full"] }
 tokio-stream = "*"
 uuid = { version = "*", features = ["v4", "v7", "serde"] }
-schemars = "*"
+schemars = { version = "*", features = ["preserve_order"] }
 async-stream = "*"
+async-trait = "0.1"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 toml = "*"
