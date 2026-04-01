@@ -13,8 +13,8 @@ pub use crate::executor::{ExecutionResult, Output, OutputMetadata, Token, TokenS
 pub struct StreamDelta {
     #[serde(default)]
     pub content: Option<String>,
-    /// Reasoning content (used by Ollama's OpenAI-compatible API for Qwen3, etc.)
-    #[serde(default)]
+    /// Reasoning content — llama.cpp sends `reasoning_content`, Ollama sends `reasoning`
+    #[serde(default, alias = "reasoning_content")]
     pub reasoning: Option<String>,
 }
 
@@ -79,3 +79,37 @@ pub struct ResponseFormatRequest {
 }
 
 // LlmType trait removed - executors now implement PromptExecutor directly
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_sse_with_reasoning_field() {
+        let line = r#"data: {"choices":[{"finish_reason":null,"index":0,"delta":{"reasoning":"thinking step"}}],"created":0,"id":"x","model":"m","object":"chat.completion.chunk"}"#;
+        let chunk = parse_sse_line(line).unwrap();
+        assert_eq!(chunk.choices[0].delta.reasoning.as_deref(), Some("thinking step"));
+        assert_eq!(chunk.choices[0].delta.content, None);
+    }
+
+    #[test]
+    fn parse_sse_with_reasoning_content_field() {
+        let line = r#"data: {"choices":[{"finish_reason":null,"index":0,"delta":{"reasoning_content":"thinking step"}}],"created":0,"id":"x","model":"m","object":"chat.completion.chunk"}"#;
+        let chunk = parse_sse_line(line).unwrap();
+        assert_eq!(chunk.choices[0].delta.reasoning.as_deref(), Some("thinking step"));
+        assert_eq!(chunk.choices[0].delta.content, None);
+    }
+
+    #[test]
+    fn parse_sse_with_content_field() {
+        let line = r#"data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":"hello"}}],"created":0,"id":"x","model":"m","object":"chat.completion.chunk"}"#;
+        let chunk = parse_sse_line(line).unwrap();
+        assert_eq!(chunk.choices[0].delta.content.as_deref(), Some("hello"));
+        assert_eq!(chunk.choices[0].delta.reasoning, None);
+    }
+
+    #[test]
+    fn parse_sse_done() {
+        assert!(parse_sse_line("data: [DONE]").is_none());
+    }
+}
