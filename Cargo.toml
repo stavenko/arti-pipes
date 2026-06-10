@@ -3,16 +3,46 @@ name = "arti-pipes"
 version = "0.1.0"
 edition = "2021"
 
+# Dependencies that compile on every target (native host and wasm32 browser).
 [dependencies]
 thiserror = "*"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 futures = "*"
-tokio = { version = "*", features = ["full"] }
 tokio-stream = "*"
 uuid = { version = "*", features = ["v4", "v7", "serde"] }
 schemars = { version = "*", features = ["preserve_order"] }
 async-stream = "*"
 async-trait = "0.1"
+# Cross-platform monotonic clock: std on host, performance.now() on wasm.
+# (std::time::Instant panics on wasm32-unknown-unknown.)
+web-time = "1"
+
+# Native host (non-wasm) dependencies: full tokio runtime + reqwest HTTP client.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "*", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 toml = "*"
+
+# Browser (wasm32) dependencies: Fetch API bindings + single-threaded spawning.
+# tokio is limited to "sync" (channels only) — its runtime/net/fs/time do not
+# compile to wasm32-unknown-unknown.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "*", features = ["sync"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+# uuid's `js` feature wires up its RNG to the browser; without it uuid v4/v7
+# fail to build for wasm32-unknown-unknown. (Features unify with the base
+# `[dependencies]` entry, so v4/v7/serde stay enabled.)
+uuid = { version = "*", features = ["js"] }
+web-sys = { version = "0.3", features = [
+    "Headers",
+    "ReadableStream",
+    "ReadableStreamDefaultReader",
+    "Request",
+    "RequestInit",
+    "Response",
+    "Window",
+    "WorkerGlobalScope",
+] }

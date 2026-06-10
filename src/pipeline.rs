@@ -63,7 +63,7 @@ where
 {
     let (tx, rx) = futures::channel::mpsc::unbounded();
 
-    tokio::task::spawn_local(async move {
+    crate::platform::spawn_local(async move {
         run_pipeline_with_stream(pipeline, context, tx).await;
     });
 

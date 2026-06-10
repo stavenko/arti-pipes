@@ -1,19 +1,16 @@
 //! Qwen LLM provider
 
 use crate::error::{ExecutionError, Result};
-use crate::llm_executors::types::{
-    ChatMessage, ExecutionResult, JsonSchemaRequest, Output, OutputMetadata,
-    ResponseFormatRequest, Token, TokenStream,
+use crate::executor::{ExecutionResult, Token, TokenStream};
+use crate::llm_executors::types::{ChatMessage, JsonSchemaRequest, ResponseFormatRequest};
+use crate::platform::spawn_output;
+use crate::transport::{
+    run_chat_completion, CompletionOptions, DefaultTransport, HttpRequest, HttpTransport,
 };
-use futures::StreamExt;
-use reqwest::Client;
 use schemars::JsonSchema;
 use serde::Serialize;
-use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-
-use super::types::parse_sse_line;
 
 /// Configuration for Qwen LLM
 #[derive(Debug, Clone)]
@@ -62,15 +59,28 @@ impl QwenBuilder {
         self
     }
 
+    fn into_config(self) -> QwenConfig {
+        QwenConfig {
+            api_base: self.api_base.expect("api_base is required"),
+            api_key: self.api_key.unwrap_or_default(),
+            model: self.model.expect("model is required"),
+            think: self.think,
+        }
+    }
+
+    /// Build the executor with the platform's default transport.
     pub fn build(self) -> Qwen {
         Qwen {
-            client: Client::new(),
-            config: QwenConfig {
-                api_base: self.api_base.expect("api_base is required"),
-                api_key: self.api_key.unwrap_or_default(),
-                model: self.model.expect("model is required"),
-                think: self.think,
-            },
+            transport: DefaultTransport::new(),
+            config: self.into_config(),
+        }
+    }
+
+    /// Build the executor with a custom transport (e.g. a mock in tests).
+    pub fn build_with_transport<T: HttpTransport>(self, transport: T) -> Qwen<T> {
+        Qwen {
+            transport,
+            config: self.into_config(),
         }
     }
 }
@@ -93,32 +103,37 @@ struct QwenChatCompletionRequest {
     think: bool,
 }
 
-/// Qwen LLM provider
+/// Qwen LLM provider, generic over the HTTP transport.
+///
+/// Defaults to the platform's [`DefaultTransport`]; tests can inject a mock by
+/// building via [`QwenBuilder::build_with_transport`].
 #[derive(Clone)]
-pub struct Qwen {
-    client: Client,
+pub struct Qwen<T = DefaultTransport> {
+    transport: T,
     config: QwenConfig,
 }
 
-impl Qwen {
+impl Qwen<DefaultTransport> {
     /// Create a new builder for Qwen
     pub fn builder() -> QwenBuilder {
         QwenBuilder::new()
     }
+}
 
+impl<T> Qwen<T> {
     fn build_url(&self) -> String {
         let base = self.config.api_base.trim_end_matches('/');
         format!("{}/chat/completions", base)
     }
 }
 
-impl crate::executor::PromptExecutor for Qwen {
+impl<T: HttpTransport> crate::executor::PromptExecutor for Qwen<T> {
     async fn execute_raw(&self, prompt: String) -> Result<ExecutionResult<String>> {
         self.execute_internal(prompt, None).await
     }
 
-    async fn execute<T: JsonSchema>(&self, prompt: String) -> Result<ExecutionResult<String>> {
-        let schema = schemars::schema_for!(T);
+    async fn execute<S: JsonSchema>(&self, prompt: String) -> Result<ExecutionResult<String>> {
+        let schema = schemars::schema_for!(S);
         let schema_value = serde_json::to_value(&schema).map_err(|e| {
             ExecutionError::Serialization(format!("Failed to serialize schema: {}", e))
         })?;
@@ -136,118 +151,48 @@ impl crate::executor::PromptExecutor for Qwen {
     }
 }
 
-impl Qwen {
+impl<T: HttpTransport> Qwen<T> {
     async fn execute_internal(
         &self,
         prompt: String,
         response_format: Option<ResponseFormatRequest>,
     ) -> Result<ExecutionResult<String>> {
-        let url = self.build_url();
-        let model = self.config.model.clone();
-        let api_key = self.config.api_key.clone();
-        let client = self.client.clone();
-        let think_value = self.config.think;
+        let request_body = QwenChatCompletionRequest {
+            model: self.config.model.clone(),
+            messages: vec![ChatMessage::user(prompt)],
+            response_format,
+            stream: true,
+            think: self.config.think,
+        };
+        let body = serde_json::to_value(&request_body)
+            .map_err(|e| ExecutionError::Serialization(e.to_string()))?;
+        let request = HttpRequest::new(
+            self.build_url(),
+            Some(self.config.api_key.clone()),
+            body,
+        );
 
         let (thinking_tx, thinking_rx) = mpsc::unbounded_channel::<Result<Token>>();
         let (content_tx, content_rx) = mpsc::unbounded_channel::<Result<Token>>();
         let thinking_stream: TokenStream = Box::pin(UnboundedReceiverStream::new(thinking_rx));
         let content_stream: TokenStream = Box::pin(UnboundedReceiverStream::new(content_rx));
 
-        let output_handle = tokio::spawn(async move {
-            let start_time = Instant::now();
-
-            let messages = vec![ChatMessage::user(prompt)];
-            let mut thinking_token_index = 0;
-            let mut content_token_index = 0;
-
-            let request_body = QwenChatCompletionRequest {
-                model: model.clone(),
-                messages,
-                response_format,
-                stream: true,
-                think: think_value,
-            };
-
-            let mut request = client.post(&url).json(&request_body);
-
-            if !api_key.is_empty() {
-                request = request.header("Authorization", format!("Bearer {}", api_key));
-            }
-
-            let response = request
-                .send()
-                .await
-                .map_err(|e| ExecutionError::ModelExecution(e.to_string()))?;
-
-            if !response.status().is_success() {
-                let status = response.status();
-                let text = response.text().await.unwrap_or_default();
-                return Err(ExecutionError::ModelExecution(format!(
-                    "HTTP {}: {}",
-                    status, text
-                )));
-            }
-
-            let mut stream_response = response.bytes_stream();
-            let mut response_content = String::new();
-            let mut buffer = String::new();
-
-            while let Some(chunk_result) = stream_response.next().await {
-                let chunk =
-                    chunk_result.map_err(|e| ExecutionError::ModelExecution(e.to_string()))?;
-
-                buffer.push_str(&String::from_utf8_lossy(&chunk));
-
-                while let Some(newline_pos) = buffer.find('\n') {
-                    let line = buffer[..newline_pos].to_string();
-                    buffer = buffer[newline_pos + 1..].to_string();
-
-                    if let Some(parsed) = parse_sse_line(&line) {
-                        for choice in parsed.choices {
-                            if think_value {
-                                if let Some(reasoning) = choice.delta.reasoning {
-                                    if !reasoning.is_empty() {
-                                        let token = Token {
-                                            content: reasoning,
-                                            index: thinking_token_index,
-                                        };
-                                        thinking_token_index += 1;
-                                        let _ = thinking_tx.send(Ok(token));
-                                    }
-                                }
-                            }
-
-                            if let Some(content) = choice.delta.content {
-                                if !content.is_empty() {
-                                    response_content.push_str(&content);
-                                    let token = Token {
-                                        content,
-                                        index: content_token_index,
-                                    };
-                                    content_token_index += 1;
-                                    let _ = content_tx.send(Ok(token));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            let generation_time_ms = start_time.elapsed().as_millis() as u64;
-
-            let metadata = OutputMetadata {
-                total_tokens: content_token_index,
-                generation_time_ms,
-                model_id: model,
-            };
-
-            Ok(Output::new(response_content, metadata))
-        });
+        let output = spawn_output(run_chat_completion(
+            self.transport.clone(),
+            request,
+            self.config.model.clone(),
+            CompletionOptions {
+                emit_reasoning: self.config.think,
+                fallback_to_thinking: false,
+            },
+            thinking_tx,
+            content_tx,
+        ));
 
         Ok(ExecutionResult {
             thinking_stream,
             content_stream,
-            output: output_handle,
+            output,
         })
     }
 }

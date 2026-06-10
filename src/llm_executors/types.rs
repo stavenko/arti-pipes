@@ -1,6 +1,5 @@
 //! Common types for LLM providers
 
-use crate::error::Result;
 use serde::{Deserialize, Serialize};
 
 // Re-export types from executor module to avoid duplication

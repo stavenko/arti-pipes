@@ -78,13 +78,10 @@ impl Prompt for SummaryPrompt {
 
                     // Wait for final output
                     match result.output.await {
-                        Ok(Ok(output)) => {
+                        Ok(output) => {
                             yield PromptExecutionEvent::Completed(output.result);
                         }
-                        Ok(Err(e)) => yield PromptExecutionEvent::Error(e),
-                        Err(e) => yield PromptExecutionEvent::Error(
-                            arti_pipes::error::ExecutionError::ModelExecution(e.to_string())
-                        ),
+                        Err(e) => yield PromptExecutionEvent::Error(e),
                     }
                 }
                 Err(e) => yield PromptExecutionEvent::Error(e),
@@ -211,13 +208,10 @@ impl Prompt for ExpandPrompt {
                     }
 
                     match result.output.await {
-                        Ok(Ok(output)) => {
+                        Ok(output) => {
                             yield PromptExecutionEvent::Completed(output.result);
                         }
-                        Ok(Err(e)) => yield PromptExecutionEvent::Error(e),
-                        Err(e) => yield PromptExecutionEvent::Error(
-                            arti_pipes::error::ExecutionError::ModelExecution(e.to_string())
-                        ),
+                        Err(e) => yield PromptExecutionEvent::Error(e),
                     }
                 }
                 Err(e) => yield PromptExecutionEvent::Error(e),
@@ -344,13 +338,10 @@ impl Prompt for ConclusionPrompt {
                     }
 
                     match result.output.await {
-                        Ok(Ok(output)) => {
+                        Ok(output) => {
                             yield PromptExecutionEvent::Completed(output.result);
                         }
-                        Ok(Err(e)) => yield PromptExecutionEvent::Error(e),
-                        Err(e) => yield PromptExecutionEvent::Error(
-                            arti_pipes::error::ExecutionError::ModelExecution(e.to_string())
-                        ),
+                        Err(e) => yield PromptExecutionEvent::Error(e),
                     }
                 }
                 Err(e) => yield PromptExecutionEvent::Error(e),
