@@ -19,6 +19,7 @@ pub struct OpenAIConfig {
     pub api_key: String,
     pub model: String,
     pub reasoning_effort: Option<String>,
+    pub max_tokens: Option<u32>,
 }
 
 /// Builder for OpenAI executor
@@ -27,6 +28,7 @@ pub struct OpenAIBuilder {
     api_key: Option<String>,
     model: Option<String>,
     reasoning_effort: Option<String>,
+    max_tokens: Option<u32>,
 }
 
 impl OpenAIBuilder {
@@ -36,6 +38,7 @@ impl OpenAIBuilder {
             api_key: None,
             model: None,
             reasoning_effort: None,
+            max_tokens: None,
         }
     }
 
@@ -59,12 +62,19 @@ impl OpenAIBuilder {
         self
     }
 
+    /// Maximum number of tokens to generate in the completion.
+    pub fn max_tokens(mut self, max_tokens: u32) -> Self {
+        self.max_tokens = Some(max_tokens);
+        self
+    }
+
     fn into_config(self) -> OpenAIConfig {
         OpenAIConfig {
             api_base: self.api_base.expect("api_base is required"),
             api_key: self.api_key.unwrap_or_default(),
             model: self.model.expect("model is required"),
             reasoning_effort: self.reasoning_effort,
+            max_tokens: self.max_tokens,
         }
     }
 
@@ -102,6 +112,8 @@ struct OpenAIChatCompletionRequest {
     /// OpenAI o1/o3: reasoning effort ("low", "medium", "high")
     #[serde(skip_serializing_if = "Option::is_none")]
     reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
 }
 
 /// OpenAI LLM provider, generic over the HTTP transport.
@@ -164,6 +176,7 @@ impl<T: HttpTransport> OpenAI<T> {
             response_format,
             stream: true,
             reasoning_effort: self.config.reasoning_effort.clone(),
+            max_tokens: self.config.max_tokens,
         };
         let body = serde_json::to_value(&request_body)
             .map_err(|e| ExecutionError::Serialization(e.to_string()))?;

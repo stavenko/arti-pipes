@@ -19,6 +19,7 @@ pub struct QwenConfig {
     pub api_key: String,
     pub model: String,
     pub think: bool,
+    pub max_tokens: Option<u32>,
 }
 
 /// Builder for Qwen executor
@@ -27,6 +28,7 @@ pub struct QwenBuilder {
     api_key: Option<String>,
     model: Option<String>,
     think: bool,
+    max_tokens: Option<u32>,
 }
 
 impl QwenBuilder {
@@ -36,6 +38,7 @@ impl QwenBuilder {
             api_key: None,
             model: None,
             think: false,
+            max_tokens: None,
         }
     }
 
@@ -59,12 +62,19 @@ impl QwenBuilder {
         self
     }
 
+    /// Maximum number of tokens to generate in the completion.
+    pub fn max_tokens(mut self, max_tokens: u32) -> Self {
+        self.max_tokens = Some(max_tokens);
+        self
+    }
+
     fn into_config(self) -> QwenConfig {
         QwenConfig {
             api_base: self.api_base.expect("api_base is required"),
             api_key: self.api_key.unwrap_or_default(),
             model: self.model.expect("model is required"),
             think: self.think,
+            max_tokens: self.max_tokens,
         }
     }
 
@@ -101,6 +111,8 @@ struct QwenChatCompletionRequest {
     stream: bool,
     /// Ollama-specific: thinking mode
     think: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
 }
 
 /// Qwen LLM provider, generic over the HTTP transport.
@@ -163,6 +175,7 @@ impl<T: HttpTransport> Qwen<T> {
             response_format,
             stream: true,
             think: self.config.think,
+            max_tokens: self.config.max_tokens,
         };
         let body = serde_json::to_value(&request_body)
             .map_err(|e| ExecutionError::Serialization(e.to_string()))?;

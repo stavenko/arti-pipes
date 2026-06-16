@@ -270,6 +270,24 @@ async fn openai_builds_expected_request_and_streams() {
     assert_eq!(req.body["messages"][0]["role"], "user");
     assert_eq!(req.body["messages"][0]["content"], "hello");
     assert_eq!(req.body["reasoning_effort"], "high");
+    // max_tokens not configured -> omitted from the body.
+    assert!(req.body.get("max_tokens").is_none());
+}
+
+#[tokio::test]
+async fn max_tokens_is_sent_when_configured() {
+    let mock = MockTransport::new(vec![content_frame("Hi"), done_frame()]);
+    let executor = OpenAI::builder()
+        .api_base("http://api")
+        .model("gpt-x")
+        .max_tokens(256)
+        .build_with_transport(mock.clone());
+
+    let result = executor.execute_raw("hello".to_string()).await.unwrap();
+    let _ = collect(result.content_stream).await;
+    result.output.await.unwrap();
+
+    assert_eq!(mock.captured().body["max_tokens"], 256);
 }
 
 #[tokio::test]
