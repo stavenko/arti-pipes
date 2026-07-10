@@ -193,7 +193,6 @@ impl<T: HttpTransport> DeepSeek<T> {
             self.config.model.clone(),
             CompletionOptions {
                 emit_reasoning: self.config.reasoning,
-                fallback_to_thinking: false,
             },
             thinking_tx,
             content_tx,

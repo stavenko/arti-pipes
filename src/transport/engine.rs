@@ -21,9 +21,6 @@ pub struct CompletionOptions {
     /// Forward reasoning/thinking deltas to the thinking stream. Providers that
     /// gate reasoning behind a config flag pass that flag here.
     pub emit_reasoning: bool,
-    /// If the content stream ends up empty, use the accumulated reasoning text
-    /// as the final result instead (GPT-OSS behaviour).
-    pub fallback_to_thinking: bool,
 }
 
 /// Drive a streaming chat-completion request to completion.
@@ -45,7 +42,6 @@ pub async fn run_chat_completion<T: HttpTransport>(
 
     let mut thinking_token_index = 0usize;
     let mut content_token_index = 0usize;
-    let mut thinking_content = String::new();
     let mut response_content = String::new();
     let mut buffer = String::new();
 
@@ -65,7 +61,6 @@ pub async fn run_chat_completion<T: HttpTransport>(
                 if options.emit_reasoning {
                     if let Some(reasoning) = choice.delta.reasoning {
                         if !reasoning.is_empty() {
-                            thinking_content.push_str(&reasoning);
                             let token = Token {
                                 content: reasoning,
                                 index: thinking_token_index,
@@ -91,17 +86,11 @@ pub async fn run_chat_completion<T: HttpTransport>(
         }
     }
 
-    let final_response = if options.fallback_to_thinking && response_content.is_empty() {
-        thinking_content
-    } else {
-        response_content
-    };
-
     let metadata = OutputMetadata {
         total_tokens: content_token_index,
         generation_time_ms: start_time.elapsed().as_millis() as u64,
         model_id: model,
     };
 
-    Ok(Output::new(final_response, metadata))
+    Ok(Output::new(response_content, metadata))
 }

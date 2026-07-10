@@ -66,7 +66,7 @@ platform-specific about *talking to the server* lives here.
   - `transport::host::HttpTransport` (+ `ReqwestTransport`) — native, `Send + Sync` futures/streams for the tokio runtime, body streamed via `reqwest::bytes_stream()`.
   - `transport::wasm::HttpTransport` (+ `FetchTransport`) — browser, **no** `Send` bounds; built on the Fetch API + `ReadableStream` (`reqwest`'s wasm backend cannot stream bodies). Fetch futures are `!Send`.
   - `transport::{HttpTransport, DefaultTransport, ByteStream}` are cfg aliases resolving to the right platform variant, so providers and the engine are written once.
-- **`run_chat_completion` (`engine.rs`)**: The single, generic, platform-agnostic SSE engine. Sends the request, parses Server-Sent-Events, forwards tokens, accumulates the final `Output`. Providers differ only in request body + `CompletionOptions { emit_reasoning, fallback_to_thinking }`.
+- **`run_chat_completion` (`engine.rs`)**: The single, generic, platform-agnostic SSE engine. Sends the request, parses Server-Sent-Events, forwards tokens, accumulates the final `Output`. Providers differ only in request body + `CompletionOptions { emit_reasoning }`.
 
 ### Cross-platform support (host + `wasm32`)
 

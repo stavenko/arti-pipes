@@ -106,7 +106,6 @@ async fn engine_streams_content_tokens_and_accumulates_output() {
         "model-x".to_string(),
         CompletionOptions {
             emit_reasoning: false,
-            fallback_to_thinking: false,
         },
         ttx,
         ctx,
@@ -137,7 +136,6 @@ async fn engine_emits_reasoning_when_enabled() {
         "m".to_string(),
         CompletionOptions {
             emit_reasoning: true,
-            fallback_to_thinking: false,
         },
         ttx,
         ctx,
@@ -166,7 +164,6 @@ async fn engine_drops_reasoning_when_disabled() {
         "m".to_string(),
         CompletionOptions {
             emit_reasoning: false,
-            fallback_to_thinking: false,
         },
         ttx,
         ctx,
@@ -177,35 +174,6 @@ async fn engine_drops_reasoning_when_disabled() {
     assert!(drain(trx).is_empty());
     assert_eq!(drain(crx), vec!["answer"]);
     assert_eq!(output.result, "answer");
-}
-
-#[tokio::test]
-async fn engine_falls_back_to_thinking_when_content_empty() {
-    let transport = MockTransport::new(vec![
-        reasoning_frame("step one "),
-        reasoning_frame("step two"),
-        done_frame(),
-    ]);
-    let (ttx, trx) = mpsc::unbounded_channel();
-    let (ctx, crx) = mpsc::unbounded_channel();
-
-    let output = run_chat_completion(
-        transport,
-        request(),
-        "m".to_string(),
-        CompletionOptions {
-            emit_reasoning: true,
-            fallback_to_thinking: true,
-        },
-        ttx,
-        ctx,
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(drain(trx), vec!["step one ", "step two"]);
-    assert!(drain(crx).is_empty(), "no content frames were sent");
-    assert_eq!(output.result, "step one step two");
 }
 
 #[tokio::test]
@@ -326,7 +294,7 @@ async fn qwen_gates_reasoning_on_think_flag() {
 }
 
 #[tokio::test]
-async fn gpt_oss_falls_back_to_thinking_when_no_content() {
+async fn gpt_oss_streams_reasoning_and_leaves_result_empty_without_content() {
     let mock = MockTransport::new(vec![reasoning_frame("only thoughts"), done_frame()]);
     let executor = GptOss::builder()
         .api_base("http://api")
@@ -335,11 +303,13 @@ async fn gpt_oss_falls_back_to_thinking_when_no_content() {
         .build_with_transport(mock.clone());
 
     let result = executor.execute_raw("q".to_string()).await.unwrap();
+    let thinking = collect(result.thinking_stream).await;
     let content = collect(result.content_stream).await;
     let output = result.output.await.unwrap();
 
+    assert_eq!(thinking, "only thoughts");
     assert_eq!(content, "", "no content frames were sent");
-    assert_eq!(output.result, "only thoughts");
+    assert_eq!(output.result, "", "reasoning is not used as the result");
     assert_eq!(mock.captured().body["think"], "low");
 }
 

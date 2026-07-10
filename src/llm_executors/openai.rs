@@ -197,7 +197,6 @@ impl<T: HttpTransport> OpenAI<T> {
             self.config.model.clone(),
             CompletionOptions {
                 emit_reasoning: true,
-                fallback_to_thinking: false,
             },
             thinking_tx,
             content_tx,

@@ -196,7 +196,6 @@ impl<T: HttpTransport> Qwen<T> {
             self.config.model.clone(),
             CompletionOptions {
                 emit_reasoning: self.config.think,
-                fallback_to_thinking: false,
             },
             thinking_tx,
             content_tx,

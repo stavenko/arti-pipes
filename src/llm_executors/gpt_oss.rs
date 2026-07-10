@@ -197,7 +197,6 @@ impl<T: HttpTransport> GptOss<T> {
             self.config.model.clone(),
             CompletionOptions {
                 emit_reasoning: true,
-                fallback_to_thinking: true,
             },
             thinking_tx,
             content_tx,
